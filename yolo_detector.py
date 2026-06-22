@@ -5,6 +5,39 @@ from ultralytics import YOLO
 from utils import BaseYOLOLoader, get_builtin_models, get_model_task, model_exists_locally
 
 
+# ============================================================
+# 官方内置数据集列表
+# ============================================================
+OFFICIAL_DATASETS = {
+    "COCO (检测 80类)":     {"data": "coco.yaml",     "task": "detect",  "desc": "COCO 2017 目标检测"},
+    "COCO128 (检测 80类)":  {"data": "coco128.yaml",  "task": "detect",  "desc": "COCO 子集，快速验证"},
+    "COCO8 (检测 8类)":     {"data": "coco8.yaml",    "task": "detect",  "desc": "COCO 超小子集，调试用"},
+    "VOC (检测 20类)":      {"data": "VOC.yaml",      "task": "detect",  "desc": "Pascal VOC 2012"},
+    "Objects365 (检测)":    {"data": "Objects365.yaml","task": "detect", "desc": "Objects365 大规模检测"},
+    "OpenImagesV7 (检测)":  {"data": "openImagesV7.yaml","task":"detect","desc": "Open Images V7"},
+    "COCO-seg (分割)":      {"data": "coco.yaml",     "task": "segment", "desc": "COCO 实例分割"},
+    "COCO8-seg (分割)":     {"data": "coco8-seg.yaml","task": "segment", "desc": "COCO 分割子集"},
+    "COCO-pose (姿态)":     {"data": "coco-pose.yaml","task": "pose",    "desc": "COCO 姿态估计"},
+    "COCO8-pose (姿态)":    {"data": "coco8-pose.yaml","task": "pose",   "desc": "COCO 姿态子集"},
+    "DOTA-v2 (OBB)":        {"data": "DOTAv2.yaml",   "task": "obb",     "desc": "DOTA 旋转框"},
+    "DOTAv1.5 (OBB)":       {"data": "DOTAv1.5.yaml", "task": "obb",     "desc": "DOTA v1.5 旋转框"},
+    "Imagenet (分类)":      {"data": "imagenet.yaml", "task": "classify","desc": "ImageNet 1000类"},
+}
+
+# 支持的导出格式
+EXPORT_FORMATS = {
+    "PyTorch (.pt)":      {"format": "torchscript",  "ext": ".torchscript",  "desc": "TorchScript 格式"},
+    "ONNX (.onnx)":       {"format": "onnx",          "ext": ".onnx",        "desc": "跨平台通用格式"},
+    "TensorRT (.engine)": {"format": "engine",        "ext": ".engine",      "desc": "NVIDIA GPU 推理加速"},
+    "CoreML (.mlpackage)":{"format": "coreml",        "ext": ".mlpackage",   "desc": "Apple 设备专用"},
+    "OpenVINO (.xml)":    {"format": "openvino",      "ext": "_openvino_model/", "desc": "Intel 推理加速"},
+    "TFLite (.tflite)":   {"format": "tflite",        "ext": ".tflite",      "desc": "移动端/嵌入式"},
+    "TF.js":              {"format": "tfjs",           "ext": "_web_model/",  "desc": "浏览器推理"},
+    "PaddlePaddle":       {"format": "paddle",        "ext": "_paddle_model/","desc": "PaddlePaddle 格式"},
+    "NCNN (.param)":      {"format": "ncnn",          "ext": "_ncnn_model/", "desc": "腾讯 NCNN 移动端"},
+}
+
+
 class YOLO_Detector(BaseYOLOLoader):
     """
     YOLO 目标检测核心类。
@@ -198,3 +231,120 @@ class YOLO_Detector(BaseYOLOLoader):
             "classify": "图像分类",
         }
         return mapping.get(task, task)
+
+    # ------------------------------------------------------------------
+    #  模型训练
+    # ------------------------------------------------------------------
+    @staticmethod
+    def get_official_datasets():
+        """返回官方数据集列表。"""
+        return OFFICIAL_DATASETS
+
+    @staticmethod
+    def get_export_formats():
+        """返回支持的导出格式列表。"""
+        return EXPORT_FORMATS
+
+    def train(self, data: str, epochs: int = 100, imgsz: int = 640,
+              batch: int = 16, device: str = None, project: str = "runs/train",
+              name: str = "yolo_train", pretrained: str = None,
+              task: str = "detect", extra_args: dict = None,
+              on_epoch_callback=None, on_log_callback=None):
+        """
+        训练 YOLO 模型。
+        :param data: 数据集 YAML 文件路径或官方数据集名 (如 coco128.yaml)
+        :param epochs: 训练轮数
+        :param imgsz: 输入图像尺寸
+        :param batch: 批大小 (-1 为自动)
+        :param device: 训练设备 (None=自动选择)
+        :param project: 输出项目目录
+        :param name: 实验名称
+        :param pretrained: 预训练模型路径 (None=使用当前已加载模型)
+        :param task: 任务类型
+        :param extra_args: 额外训练参数字典
+        :param on_epoch_callback: 每轮结束回调 fn(epoch, total_epochs, metrics_dict)
+        :param on_log_callback: 日志回调 fn(message_str)
+        :return: 训练后的模型路径 (best.pt)
+        """
+        # 准备模型
+        if pretrained:
+            model = YOLO(pretrained)
+        elif self.is_loaded():
+            model = self.model
+        else:
+            raise RuntimeError("未加载模型，请指定预训练模型或先加载模型")
+
+        # 构建训练参数
+        train_args = {
+            "data": data,
+            "epochs": epochs,
+            "imgsz": imgsz,
+            "batch": batch,
+            "device": device or self.device,
+            "project": project,
+            "name": name,
+            "task": task,
+            "verbose": True,
+            "exist_ok": True,
+            "plots": True,
+            "save": True,
+        }
+        if extra_args:
+            train_args.update(extra_args)
+
+        if on_log_callback:
+            on_log_callback(f"开始训练 — 数据集: {data}, Epochs: {epochs}, "
+                            f"ImgSz: {imgsz}, Batch: {batch}, Device: {train_args['device']}")
+
+        # 执行训练
+        results = model.train(**train_args)
+
+        # 获取最佳模型路径
+        best_model_path = str(model.trainer.best)
+        if on_log_callback:
+            on_log_callback(f"训练完成！最佳模型保存至: {best_model_path}")
+
+        return best_model_path
+
+    def export_model(self, model_path: str = None, export_format: str = "onnx",
+                     imgsz: int = 640, half: bool = False,
+                     simplify: bool = True, opset: int = 12,
+                     dynamic: bool = False, on_log_callback=None):
+        """
+        导出模型到指定格式。
+        :param model_path: 模型路径 (None=使用当前加载的模型)
+        :param export_format: 导出格式 (onnx/engine/torchscript/coreml/tflite 等)
+        :param imgsz: 导出图像尺寸
+        :param half: 是否使用 FP16 半精度
+        :param simplify: 是否简化 ONNX 模型
+        :param opset: ONNX opset 版本
+        :param dynamic: 是否使用动态输入尺寸
+        :param on_log_callback: 日志回调
+        :return: 导出文件路径
+        """
+        if model_path:
+            model = YOLO(model_path)
+        elif self.is_loaded():
+            model = self.model
+        else:
+            raise RuntimeError("未加载模型，请指定模型路径或先加载模型")
+
+        export_args = {
+            "format": export_format,
+            "imgsz": imgsz,
+            "half": half,
+            "simplify": simplify,
+            "opset": opset,
+            "dynamic": dynamic,
+            "device": self.device,
+        }
+
+        if on_log_callback:
+            on_log_callback(f"开始导出模型 — 格式: {export_format}, 尺寸: {imgsz}")
+
+        exported_path = model.export(**export_args)
+
+        if on_log_callback:
+            on_log_callback(f"模型导出完成: {exported_path}")
+
+        return str(exported_path)

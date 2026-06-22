@@ -5,7 +5,7 @@ from PySide6.QtWidgets import (
     QFrame, QToolButton
 )
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QImage, QPixmap, QFont
+from PySide6.QtGui import QImage, QPixmap, QFont, QShortcut, QKeySequence
 from utils import get_builtin_models
 
 
@@ -24,9 +24,9 @@ QWidget {
 }
 QGroupBox {
     border: 1px solid #45475a;
-    border-radius: 8px;
-    margin-top: 10px;
-    padding: 12px 8px 8px 8px;
+    border-radius: 6px;
+    margin-top: 6px;
+    padding: 8px 6px 4px 6px;
     font-weight: bold;
     color: #89b4fa;
 }
@@ -40,8 +40,8 @@ QPushButton {
     color: #cdd6f4;
     border: 1px solid #45475a;
     border-radius: 6px;
-    padding: 6px 14px;
-    min-height: 28px;
+    padding: 4px 12px;
+    min-height: 24px;
 }
 QPushButton:hover {
     background-color: #45475a;
@@ -73,8 +73,8 @@ QComboBox {
     background-color: #313244;
     border: 1px solid #45475a;
     border-radius: 6px;
-    padding: 4px 8px;
-    min-height: 24px;
+    padding: 3px 6px;
+    min-height: 22px;
     color: #cdd6f4;
 }
 QComboBox:hover { border-color: #89b4fa; }
@@ -100,6 +100,41 @@ QSlider::handle:horizontal {
 QSlider::handle:horizontal:hover {
     background: #b4befe;
 }
+QSpinBox, QDoubleSpinBox {
+    background-color: #313244;
+    border: 1px solid #45475a;
+    border-radius: 4px;
+    padding: 2px 4px;
+    padding-right: 22px;
+    color: #cdd6f4;
+}
+QSpinBox::up-button, QDoubleSpinBox::up-button {
+    subcontrol-origin: border;
+    subcontrol-position: top right;
+    width: 20px;
+    border-left: 1px solid #45475a;
+    border-bottom: 1px solid #45475a;
+    border-top-right-radius: 4px;
+    background: #313244;
+}
+QSpinBox::down-button, QDoubleSpinBox::down-button {
+    subcontrol-origin: border;
+    subcontrol-position: bottom right;
+    width: 20px;
+    border-left: 1px solid #45475a;
+    border-bottom-right-radius: 4px;
+    background: #313244;
+}
+QSpinBox::up-button:hover, QDoubleSpinBox::up-button:hover,
+QSpinBox::down-button:hover, QDoubleSpinBox::down-button:hover {
+    background: #45475a;
+}
+QSpinBox::up-arrow, QDoubleSpinBox::up-arrow {
+    width: 8px; height: 8px;
+}
+QSpinBox::down-arrow, QDoubleSpinBox::down-arrow {
+    width: 8px; height: 8px;
+}
 QTextEdit {
     background-color: #11111b;
     color: #a6e3a1;
@@ -113,8 +148,8 @@ QLabel#lblDisplay {
     background-color: #11111b;
     border: 2px solid #313244;
     border-radius: 8px;
-    min-width: 640px;
-    min-height: 480px;
+    min-width: 200px;
+    min-height: 100px;
 }
 QLabel#lblModelPath {
     color: #a6adc8;
@@ -132,9 +167,11 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Ultralytics YOLO 智能检测平台")
-        self.setGeometry(80, 60, 1360, 900)
+        self.setGeometry(80, 60, 1200, 900)
+        self.setMinimumSize(1200, 900)
         self.setStyleSheet(DARK_STYLE)
         self._builtin_models = get_builtin_models()
+        self._current_pixmap: QPixmap | None = None
         self.init_ui()
 
     # ------------------------------------------------------------------
@@ -144,51 +181,51 @@ class MainWindow(QMainWindow):
         central = QWidget()
         self.setCentralWidget(central)
         root_layout = QVBoxLayout(central)
-        root_layout.setContentsMargins(10, 10, 10, 10)
-        root_layout.setSpacing(8)
+        root_layout.setContentsMargins(8, 8, 8, 8)
+        root_layout.setSpacing(4)
 
         # ===================== 顶部工具栏 =====================
         top_group = QGroupBox("模型与参数控制")
         top_layout = QHBoxLayout(top_group)
-        top_layout.setSpacing(10)
+        top_layout.setSpacing(8)
 
         # 加载自定义模型
         self.btn_load_model = QPushButton("加载模型 (.pt)")
-        self.btn_load_model.setMinimumWidth(120)
+        self.btn_load_model.setMinimumWidth(100)
 
         # 内置模型下拉框
         self.cmb_builtin = QComboBox()
         self.cmb_builtin.addItem("-- 选择内置模型 --")
         for name, _file, _task, desc in self._builtin_models:
             self.cmb_builtin.addItem(f"{name}  [{desc}]")
-        self.cmb_builtin.setMinimumWidth(260)
+        self.cmb_builtin.setMinimumWidth(220)
 
         # 模型路径标签
         self.lbl_model_path = QLabel("未选择模型")
         self.lbl_model_path.setObjectName("lblModelPath")
-        self.lbl_model_path.setMinimumWidth(160)
-        self.lbl_model_path.setMaximumWidth(220)
+        self.lbl_model_path.setMinimumWidth(100)
+        self.lbl_model_path.setMaximumWidth(180)
 
         # 任务类型
         self.cmb_task = QComboBox()
         self.cmb_task.addItems(["detect", "segment", "pose", "obb"])
-        self.cmb_task.setMinimumWidth(90)
+        self.cmb_task.setMinimumWidth(80)
 
         # 置信度滑块
         self.sld_conf = QSlider(Qt.Horizontal)
         self.sld_conf.setRange(5, 95)
         self.sld_conf.setValue(25)
-        self.sld_conf.setMinimumWidth(120)
+        self.sld_conf.setMinimumWidth(100)
         self.lbl_conf_val = QLabel("Conf: 0.25")
-        self.lbl_conf_val.setMinimumWidth(75)
+        self.lbl_conf_val.setMinimumWidth(65)
 
         # IOU 滑块
         self.sld_iou = QSlider(Qt.Horizontal)
         self.sld_iou.setRange(10, 95)
         self.sld_iou.setValue(45)
-        self.sld_iou.setMinimumWidth(120)
+        self.sld_iou.setMinimumWidth(100)
         self.lbl_iou_val = QLabel("IOU: 0.45")
-        self.lbl_iou_val.setMinimumWidth(75)
+        self.lbl_iou_val.setMinimumWidth(65)
 
         top_layout.addWidget(self.btn_load_model)
         top_layout.addWidget(QLabel("内置:"))
@@ -219,7 +256,7 @@ class MainWindow(QMainWindow):
         # ---- 右侧：操作与状态面板 (30%) ----
         right_panel = QWidget()
         right_layout = QVBoxLayout(right_panel)
-        right_layout.setSpacing(8)
+        right_layout.setSpacing(2)
 
         # 视频源选择
         src_group = QGroupBox("检测源")
@@ -230,11 +267,15 @@ class MainWindow(QMainWindow):
             "摄像头 (1)",
             "视频文件...",
             "图片文件...",
+            "图片文件夹...",
         ])
         self.btn_select_image = QPushButton("选择图片")
         self.btn_select_image.setEnabled(False)
+        self.btn_select_folder = QPushButton("选择文件夹")
+        self.btn_select_folder.setEnabled(False)
         src_layout.addWidget(self.cmb_source)
         src_layout.addWidget(self.btn_select_image)
+        src_layout.addWidget(self.btn_select_folder)
         right_layout.addWidget(src_group)
 
         # 控制按钮
@@ -242,16 +283,40 @@ class MainWindow(QMainWindow):
         ctrl_layout = QVBoxLayout(ctrl_group)
         self.btn_start = QPushButton("▶  开始检测")
         self.btn_start.setObjectName("btnStart")
-        self.btn_start.setMinimumHeight(42)
+        self.btn_start.setMinimumHeight(28)
         self.btn_stop = QPushButton("■  停止检测")
         self.btn_stop.setObjectName("btnStop")
-        self.btn_stop.setMinimumHeight(42)
+        self.btn_stop.setMinimumHeight(28)
         self.btn_stop.setEnabled(False)
         self.btn_unload = QPushButton("卸载模型")
         ctrl_layout.addWidget(self.btn_start)
         ctrl_layout.addWidget(self.btn_stop)
         ctrl_layout.addWidget(self.btn_unload)
+
+        # 保存结果（手动按钮）
+        self.btn_save_result = QPushButton("💾  保存当前结果")
+        self.btn_save_result.setEnabled(False)
+        ctrl_layout.addWidget(self.btn_save_result)
+
+        # 类别过滤
+        self.btn_class_filter = QPushButton("类别过滤")
+        ctrl_layout.addWidget(self.btn_class_filter)
+
         right_layout.addWidget(ctrl_group)
+
+        # 工具按钮组
+        tool_group = QGroupBox("工具")
+        tool_layout = QVBoxLayout(tool_group)
+        self.btn_train = QPushButton("\U0001F3CB  模型训练")
+        self.btn_train.setMinimumHeight(26)
+        self.btn_export = QPushButton("\U0001F4E6  模型导出")
+        self.btn_export.setMinimumHeight(26)
+        self.btn_history = QPushButton("\U0001F4CB  历史记录")
+        self.btn_history.setMinimumHeight(26)
+        tool_layout.addWidget(self.btn_train)
+        tool_layout.addWidget(self.btn_export)
+        tool_layout.addWidget(self.btn_history)
+        right_layout.addWidget(tool_group)
 
         # 实时状态
         status_group = QGroupBox("实时状态")
@@ -274,18 +339,27 @@ class MainWindow(QMainWindow):
         right_layout.addStretch()
         mid_splitter.addWidget(right_panel)
 
-        # 设置分割比例 7:3
-        mid_splitter.setSizes([950, 410])
-        root_layout.addWidget(mid_splitter, stretch=1)
+        # 设置分割比例 60:40
+        mid_splitter.setSizes([800, 400])
 
         # ===================== 底部日志 =====================
         log_group = QGroupBox("运行日志")
         log_layout = QVBoxLayout(log_group)
         self.txt_log = QTextEdit()
         self.txt_log.setReadOnly(True)
-        self.txt_log.setMaximumHeight(140)
         log_layout.addWidget(self.txt_log)
-        root_layout.addWidget(log_group)
+
+        # 使用垂直 Splitter 让中部和日志区可拖拽调整比例
+        vsplit = QSplitter(Qt.Vertical)
+        vsplit.addWidget(mid_splitter)
+        vsplit.addWidget(log_group)
+        vsplit.setSizes([450, 130])
+        vsplit.setStretchFactor(0, 3)
+        vsplit.setStretchFactor(1, 1)
+        root_layout.addWidget(vsplit, stretch=1)
+
+        # ===================== 快捷键 =====================
+        self._setup_shortcuts()
 
     # ------------------------------------------------------------------
     #  辅助 UI 方法
@@ -301,21 +375,35 @@ class MainWindow(QMainWindow):
         """
         将 numpy BGR 图像转换为 QPixmap 并显示。
         Ultralytics result.plot() 返回 BGR 格式。
+        存储 pixmap 以便 resize 时重新缩放。
         """
         if image_np is None or image_np.size == 0:
             return
         try:
             h, w, ch = image_np.shape
             bytes_per_line = ch * w
-            # OpenCV BGR → Qt RGB: 使用 Format_BGR888 (PySide6 支持) 或 rgbSwapped
             qt_img = QImage(image_np.data, w, h, bytes_per_line, QImage.Format_BGR888)
-            pixmap = QPixmap.fromImage(qt_img)
-            scaled = pixmap.scaled(
-                self.lbl_display.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation
-            )
-            self.lbl_display.setPixmap(scaled)
+            self._current_pixmap = QPixmap.fromImage(qt_img)
+            self._show_scaled_pixmap()
         except Exception as e:
             print(f"帧显示错误: {e}")
+
+    def _show_scaled_pixmap(self):
+        """将当前存储的 pixmap 按 label 尺寸等比缩放后显示"""
+        if self._current_pixmap is None or self._current_pixmap.isNull():
+            return
+        lbl_size = self.lbl_display.size()
+        if lbl_size.width() <= 0 or lbl_size.height() <= 0:
+            return
+        scaled = self._current_pixmap.scaled(
+            lbl_size, Qt.KeepAspectRatio, Qt.SmoothTransformation
+        )
+        self.lbl_display.setPixmap(scaled)
+
+    def resizeEvent(self, event):
+        """窗口大小变化时重新缩放图片"""
+        super().resizeEvent(event)
+        self._show_scaled_pixmap()
 
     def update_status_info(self, fps: float, obj_count: int, latency_ms: float = 0):
         """更新右侧状态栏"""
@@ -339,3 +427,36 @@ class MainWindow(QMainWindow):
         self.txt_log.append(f"[{ts}]  {message}")
         sb = self.txt_log.verticalScrollBar()
         sb.setValue(sb.maximum())
+
+    # ------------------------------------------------------------------
+    #  快捷键设置
+    # ------------------------------------------------------------------
+    def _setup_shortcuts(self):
+        """设置全局快捷键"""
+        shortcuts = [
+            ("Ctrl+O", self.btn_load_model.click),
+            ("Ctrl+S", self.btn_start.click),
+            ("Ctrl+Q", self.btn_stop.click),
+            ("Ctrl+T", self.btn_train.click),
+            ("Ctrl+E", self.btn_export.click),
+            ("Ctrl+H", self.btn_history.click),
+            ("Space",  self._toggle_detection),
+            ("F11",    self._toggle_fullscreen),
+        ]
+        for key_seq, slot in shortcuts:
+            sc = QShortcut(QKeySequence(key_seq), self)
+            sc.activated.connect(slot)
+
+    def _toggle_detection(self):
+        """Space 键切换开始/停止检测"""
+        if self.btn_start.isEnabled():
+            self.btn_start.click()
+        elif self.btn_stop.isEnabled():
+            self.btn_stop.click()
+
+    def _toggle_fullscreen(self):
+        """F11 切换全屏"""
+        if self.isFullScreen():
+            self.showNormal()
+        else:
+            self.showFullScreen()
