@@ -263,16 +263,26 @@ class TrainingDialog(QDialog):
         # 预训练模型
         params_layout.addWidget(QLabel("预训练模型:"), row, 0)
         self.cmb_pretrained = QComboBox()
-        self.cmb_pretrained.addItem("使用当前加载的模型")
-        for name, info in [
-            ("yolo26n.pt", "Nano"), ("yolo26s.pt", "Small"),
-            ("yolo26m.pt", "Medium"), ("yolo26l.pt", "Large"),
-            ("yolo26x.pt", "XLarge"),
-            ("yolo11n.pt", "YOLO11-Nano"),
-        ]:
+        self._pretrained_items = [
+            ("yolo11n.pt", "YOLO11-Nano（推荐）"),
+            ("yolo11s.pt", "YOLO11-Small"),
+            ("yolo11m.pt", "YOLO11-Medium"),
+            ("yolo11l.pt", "YOLO11-Large"),
+            ("yolo11x.pt", "YOLO11-XLarge"),
+            ("yolo26n.pt", "YOLO26-Nano"),
+            ("yolo26s.pt", "YOLO26-Small"),
+            ("yolo26m.pt", "YOLO26-Medium"),
+            ("yolo26l.pt", "YOLO26-Large"),
+            ("yolo26x.pt", "YOLO26-XLarge"),
+        ]
+        for name, info in self._pretrained_items:
             self.cmb_pretrained.addItem(f"{name} ({info})")
+        self.cmb_pretrained.addItem("使用当前加载的模型")
         self.cmb_pretrained.addItem("浏览自定义模型...")
+        self.cmb_pretrained.addItem("从头开始训练 (随机初始化，不推荐)")
         self.cmb_pretrained.setMinimumWidth(220)
+        # 默认选中第一个 yolo11n.pt
+        self.cmb_pretrained.setCurrentIndex(0)
         self.cmb_pretrained.currentIndexChanged.connect(self._on_pretrained_changed)
         params_layout.addWidget(self.cmb_pretrained, row, 1)
 
@@ -399,8 +409,9 @@ class TrainingDialog(QDialog):
 
     # ------------------------------------------------------------------
     def _on_pretrained_changed(self, index: int):
-        """当预训练模型下拉框变化时，若选中最后一项则弹出文件选择"""
-        if index == self.cmb_pretrained.count() - 1:  # 最后一项 = 浏览自定义
+        """当预训练模型下拉框变化时，若选中"浏览自定义模型..."则弹出文件选择"""
+        current_text = self.cmb_pretrained.currentText()
+        if "浏览自定义" in current_text and not self._custom_pretrained_path:
             path, _ = QFileDialog.getOpenFileName(
                 self, "选择预训练模型文件", "", "PyTorch Models (*.pt)"
             )
@@ -439,9 +450,15 @@ class TrainingDialog(QDialog):
 
         # 预训练模型
         pretrained_idx = self.cmb_pretrained.currentIndex()
-        if pretrained_idx == 0:
-            pretrained = self._current_model  # 使用当前模型
-        elif pretrained_idx == self.cmb_pretrained.count() - 1 or self._custom_pretrained_path:
+        n_builtin = len(self._pretrained_items)  # 内置预训练模型数量
+        if pretrained_idx < n_builtin:
+            # 内置预训练模型 (yolo11n.pt, yolo11s.pt, ...)
+            pretrained = self._pretrained_items[pretrained_idx][0]
+        elif pretrained_idx == n_builtin:
+            pretrained = self._current_model  # 使用当前加载的模型
+        elif pretrained_idx == self.cmb_pretrained.count() - 1:
+            pretrained = ""  # 从头开始训练（最后一项）
+        elif self._custom_pretrained_path:
             pretrained = self._custom_pretrained_path  # 自定义浏览的模型
         else:
             pretrained = self.cmb_pretrained.currentText().split(" ")[0]

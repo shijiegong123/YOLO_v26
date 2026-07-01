@@ -88,5 +88,41 @@
     "source_type": "image",
     "obj_count": 20,
     "latency_ms": 1011.0
+  },
+  {
+    "timestamp": "2026-06-23 09:23:59",
+    "model": "best.pt",
+    "task": "detect",
+    "source": "图片文件...",
+    "source_type": "image",
+    "obj_count": 0,
+    "latency_ms": 188.0
+  },
+  {
+    "timestamp": "2026-06-23 09:45:53",
+    "model": "best.pt",
+    "task": "detect",
+    "source": "图片文件...",
+    "source_type": "image",
+    "obj_count": 0,
+    "latency_ms": 165.0
+  },
+  {
+    "timestamp": "2026-06-23 09:59:47",
+    "model": "best.pt",
+    "task": "detect",
+    "source": "图片文件...",
+    "source_type": "image",
+    "obj_count": 7,
+    "latency_ms": 182.0
+  },
+  {
+    "timestamp": "2026-06-23 13:43:11",
+    "model": "best.pt",
+    "task": "detect",
+    "source": "图片文件...",
+    "source_type": "image",
+    "obj_count": 1,
+    "latency_ms": 240.0
   }
 ]

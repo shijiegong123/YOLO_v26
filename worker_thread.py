@@ -250,11 +250,25 @@ class TrainingThread(QThread):
 
     def run(self):
         """线程主体：加载模型 → 执行训练 → 发送结果"""
+        # 任务对应的从头训练 YAML 配置
+        _TASK_YAML = {
+            "detect":   "yolo11n.yaml",
+            "segment":  "yolo11n-seg.yaml",
+            "pose":     "yolo11n-pose.yaml",
+            "obb":      "yolo11n-obb.yaml",
+            "classify": "yolo11n-cls.yaml",
+        }
         try:
-            self.sig_log.emit(f"正在加载预训练模型: {self.pretrained_model}")
-            model = YOLO(self.pretrained_model)
+            if self.pretrained_model:
+                self.sig_log.emit(f"正在加载预训练模型: {self.pretrained_model}")
+                model = YOLO(self.pretrained_model)
+            else:
+                # 从头训练：使用模型架构 YAML 创建随机初始化模型
+                yaml_config = _TASK_YAML.get(self.task, "yolo11n.yaml")
+                self.sig_log.emit(f"从头开始训练，使用配置: {yaml_config}")
+                model = YOLO(yaml_config)
         except Exception as e:
-            self.sig_error.emit(f"模型加载失败: {e}")
+            self.sig_error.emit(f"模型初始化失败: {e}")
             return
 
         if not self._is_running:

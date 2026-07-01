@@ -358,9 +358,7 @@ class YOLOAppController:
             QMessageBox.warning(self._train_dialog, "提示", "请先选择或输入数据集！")
             return
 
-        if not params["pretrained"]:
-            QMessageBox.warning(self._train_dialog, "提示", "请先加载或选择预训练模型！")
-            return
+        # pretrained 为空表示从头训练，不需要提示
 
         # 停止之前的训练线程
         if self.training_thread and self.training_thread.isRunning():
@@ -389,7 +387,8 @@ class YOLOAppController:
 
         self.training_thread.start()
         self._train_dialog.set_training_state(True)
-        self.window.log(f"训练已开始 — 数据集: {params['data']}")
+        pretrained_info = f"预训练: {params['pretrained']}" if params['pretrained'] else "从头训练"
+        self.window.log(f"训练已开始 — 数据集: {params['data']}, {pretrained_info}")
 
     @Slot()
     def _on_stop_training(self):
